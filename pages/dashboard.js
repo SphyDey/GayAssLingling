@@ -131,20 +131,20 @@ export default function Dashboard() {
           </button>
         </form>
 
-        {/* Public Link Preview */}
-        {username && (
-          <p className="mt-6 text-center text-sm text-gray-600">
-            🔗 Your page:{" "}
-            <a
-              href={`/${username}`}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="text-blue-600 underline"
-            >
-              /{username}
-            </a>
-          </p>
-        )}
+{/* Public Link Preview */}
+{username && (
+  <div className="mt-6 text-center">
+    <p className="text-sm text-gray-600 mb-2">🔗 Your page:</p>
+    <a
+      href={`/${username}`}
+      target="_blank"
+      rel="noopener noreferrer"
+      className="inline-block bg-green-600 text-white rounded-lg px-4 py-2 hover:bg-green-700 transition"
+    >
+      View Public Page
+    </a>
+  </div>
+)}
 
         <button
           onClick={handleLogout}
