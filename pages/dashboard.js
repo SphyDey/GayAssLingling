@@ -1,86 +1,158 @@
-import { useEffect, useState } from 'react';
-import { supabase } from '../src/lib/supabaseClient';
-import Link from 'next/link';
-import AvatarUploader from '../components/AvatarUploader';
+// pages/dashboard.js
+import { useEffect, useState } from "react";
+import { useRouter } from "next/router";
+import { supabase } from "@/src/lib/supabaseClient";
 
 export default function Dashboard() {
-  const [session, setSession] = useState(null);
+  const router = useRouter();
+  const [loading, setLoading] = useState(true);
   const [profile, setProfile] = useState(null);
-  const [slug, setSlug] = useState('');
+  const [username, setUsername] = useState("");
+  const [bio, setBio] = useState("");
+  const [avatarUrl, setAvatarUrl] = useState("");
+  const [message, setMessage] = useState("");
 
   useEffect(() => {
-    supabase.auth.getSession().then(({ data }) => {
-      setSession(data.session);
-    });
-    supabase.auth.onAuthStateChange((_event, sess) => setSession(sess));
-  }, []);
+    const getProfile = async () => {
+      const {
+        data: { user },
+        error: userError,
+      } = await supabase.auth.getUser();
 
-  useEffect(() => {
-    if (!session) return;
-    supabase.from('profiles').select('*').eq('user_id', session.user.id).maybeSingle().then(({ data }) => {
-      setProfile(data);
-      setSlug(data?.slug || '');
-    });
-  }, [session]);
+      if (userError || !user) {
+        router.push("/auth");
+        return;
+      }
 
-  const saveSlug = async () => {
-    if (!slug) return;
-    const { error, data } = await supabase.from('profiles').update({ slug }).eq('id', profile.id).select().maybeSingle();
-    if (error) {
-      if (error.code === '23505') alert('Slug taken, choose another.');
-      else alert(error.message);
-    } else {
-      setProfile(data);
-    }
-  };
+      const { data, error } = await supabase
+        .from("profiles")
+        .select("id, username, bio, avatar_url")
+        .eq("id", user.id)
+        .single();
 
-  if (!session) return <div className='p-4'>Please login.</div>;
-  if (!profile) return <div className='p-4'>Loading profile...</div>;
-
-  return (
-    <div className='p-6 max-w-2xl mx-auto'>
-      <h1 className='text-2xl font-bold mb-4'>Dashboard</h1>
-      <div className='mb-4'>
-        <label className='block font-medium'>Custom URL</label>
-        <div className='flex items-center space-x-2'>
-          <span className='text-gray-600'>yourdomain.com/</span>
-          <input value={slug} onChange={e=>setSlug(e.target.value.toLowerCase())} className='border rounded px-2 py-1'/>
-        </div>
-        <button onClick={saveSlug} className='mt-2 px-3 py-1 bg-blue-600 text-white rounded'>Save URL</button>
-        {profile.slug && <div className='mt-1 text-sm'>Public page: <Link href={`/${profile.slug}`}><a className='text-blue-600'>/{profile.slug}</a></Link></div>}
-      </div>
-      <AvatarUploader profile={profile} onUploaded={async (u)=>{
-        await supabase.from('profiles').update({ avatar_path: u.publicUrl }).eq('id', profile.id);
-        const { data } = await supabase.from('profiles').select('*').eq('id', profile.id).maybeSingle();
+      if (!error && data) {
         setProfile(data);
-      }} />
-      <TemplateList profile={profile} onProfileUpdated={setProfile} />
-    </div>
-  );
-}
+        setUsername(data.username || "");
+        setBio(data.bio || "");
+        setAvatarUrl(data.avatar_url || "");
+      }
 
-function TemplateList({ profile, onProfileUpdated }) {
-  const templates = [
-    { id:'minimal', title:'Minimal', settings:{ theme:'minimal', colors:{ bg:'#fff', accent:'#111827'}, font:'Inter'} },
-    { id:'dark', title:'Dark', settings:{ theme:'dark', colors:{ bg:'#0f172a', accent:'#f97316'}, font:'Inter'} },
-    { id:'pastel', title:'Pastel', settings:{ theme:'pastel', colors:{ bg:'#fff7ed', accent:'#7c3aed'}, font:'Inter'} }
-  ];
-  const apply = async (tpl)=>{
-    await supabase.from('profiles').update({ settings: tpl.settings }).eq('id', profile.id);
-    const { data } = await supabase.from('profiles').select('*').eq('id', profile.id).maybeSingle();
-    onProfileUpdated(data);
+      setLoading(false);
+    };
+
+    getProfile();
+  }, [router]);
+
+  const updateProfile = async (e) => {
+    e.preventDefault();
+    setMessage("");
+    setLoading(true);
+
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+
+    if (!user) {
+      router.push("/auth");
+      return;
+    }
+
+    const updates = {
+      id: user.id,
+      username, // user can edit this
+      bio,
+      avatar_url: avatarUrl,
+    };
+
+    const { error } = await supabase.from("profiles").upsert(updates);
+
+    if (error) {
+      setMessage("❌ " + error.message);
+    } else {
+      setMessage("✅ Profile updated!");
+    }
+
+    setLoading(false);
   };
+
+  const handleLogout = async () => {
+    await supabase.auth.signOut();
+    router.push("/auth");
+  };
+
+  if (loading) return <p>Loading dashboard...</p>;
+
   return (
-    <div className='mt-6'>
-      <h3 className='font-semibold mb-2'>Templates</h3>
-      <div className='grid grid-cols-1 sm:grid-cols-3 gap-3'>
-        {templates.map(t=>(
-          <div key={t.id} className='p-3 border rounded'>
-            <div className='font-medium'>{t.title}</div>
-            <button onClick={()=>apply(t)} className='mt-2 px-2 py-1 bg-black text-white rounded text-sm'>Apply</button>
-          </div>
-        ))}
+    <div className="min-h-screen flex items-center justify-center bg-gray-50 p-6">
+      <div className="bg-white shadow-lg rounded-xl p-8 max-w-md w-full">
+        <h1 className="text-2xl font-bold mb-6 text-center">Dashboard</h1>
+
+        {message && (
+          <p
+            className={`mb-4 text-center ${
+              message.startsWith("✅") ? "text-green-600" : "text-red-600"
+            }`}
+          >
+            {message}
+          </p>
+        )}
+
+        <form onSubmit={updateProfile} className="space-y-4">
+          <input
+            type="text"
+            placeholder="Username"
+            value={username}
+            onChange={(e) => setUsername(e.target.value)}
+            required
+            className="w-full border rounded-lg p-3"
+          />
+
+          <textarea
+            placeholder="Bio"
+            value={bio}
+            onChange={(e) => setBio(e.target.value)}
+            className="w-full border rounded-lg p-3"
+          />
+
+          <input
+            type="text"
+            placeholder="Avatar URL"
+            value={avatarUrl}
+            onChange={(e) => setAvatarUrl(e.target.value)}
+            className="w-full border rounded-lg p-3"
+          />
+
+          <button
+            type="submit"
+            disabled={loading}
+            className="w-full bg-blue-600 text-white rounded-lg p-3 hover:bg-blue-700 transition"
+          >
+            {loading ? "Saving..." : "Save Changes"}
+          </button>
+        </form>
+
+        {/* Public Link Preview */}
+        {username && (
+          <p className="mt-6 text-center text-sm text-gray-600">
+            🔗 Your page:{" "}
+            <a
+              href={`/${username}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-blue-600 underline"
+            >
+              /{username}
+            </a>
+          </p>
+        )}
+
+        <button
+          onClick={handleLogout}
+          className="w-full mt-6 bg-gray-800 text-white rounded-lg p-3 hover:bg-gray-900 transition"
+        >
+          Logout
+        </button>
       </div>
     </div>
   );
-}
+        }
