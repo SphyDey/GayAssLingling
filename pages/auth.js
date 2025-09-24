@@ -1,47 +1,149 @@
-import { useState, useEffect } from 'react';
-import { supabase } from '../src/lib/supabaseClient';
-import { useRouter } from 'next/router';
+// pages/auth.js
+import { useState } from "react";
+import { supabase } from "@/src/lib/supabaseClient";
+import { useRouter } from "next/router";
 
-export default function Auth() {
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [msg, setMsg] = useState('');
+export default function AuthPage() {
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [username, setUsername] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [errorMsg, setErrorMsg] = useState("");
   const router = useRouter();
 
-  useEffect(()=> {
-    supabase.auth.getSession().then(r=> {
-      if (r.data.session) router.push('/dashboard');
-    });
-    const { data: sub } = supabase.auth.onAuthStateChange((_event, session) => {
-      if (session) router.push('/dashboard');
-    });
-    return () => sub?.subscription?.unsubscribe?.();
-  }, []);
+  const handleSignUp = async (e) => {
+    e.preventDefault();
+    setLoading(true);
+    setErrorMsg("");
 
-  const signUp = async () => {
-    const { error } = await supabase.auth.signUp({ email, password });
-    if (error) setMsg(error.message);
-    else setMsg('Check your email to confirm your account.');
+    // Sign up with Supabase Auth
+    const { data, error } = await supabase.auth.signUp({
+      email,
+      password,
+    });
+
+    if (error) {
+      setErrorMsg(error.message);
+      setLoading(false);
+      return;
+    }
+
+    const user = data?.user;
+
+    if (user) {
+      // Create profile right away with username
+      const { error: profileError } = await supabase.from("profiles").upsert(
+        {
+          id: user.id, // user.id from Supabase Auth
+          username, // chosen slug
+        },
+        { onConflict: "id" }
+      );
+
+      if (profileError) {
+        setErrorMsg(profileError.message);
+      } else {
+        // Redirect after signup
+        router.push("/dashboard");
+      }
+    }
+
+    setLoading(false);
   };
 
-  const signIn = async () => {
-    const { error } = await supabase.auth.signInWithPassword({ email, password });
-    if (error) setMsg(error.message);
-    else router.push('/dashboard');
+  const handleLogin = async (e) => {
+    e.preventDefault();
+    setLoading(true);
+    setErrorMsg("");
+
+    const { error } = await supabase.auth.signInWithPassword({
+      email,
+      password,
+    });
+
+    if (error) {
+      setErrorMsg(error.message);
+    } else {
+      router.push("/dashboard");
+    }
+
+    setLoading(false);
   };
 
   return (
-    <main className='min-h-screen flex items-center justify-center p-6'>
-      <div className='max-w-md w-full'>
-        <h2 className='text-xl font-bold mb-4'>Sign up / Login</h2>
-        <input value={email} onChange={e=>setEmail(e.target.value)} placeholder='Email' className='w-full mb-2 p-2 border' />
-        <input value={password} onChange={e=>setPassword(e.target.value)} placeholder='Password' type='password' className='w-full mb-2 p-2 border' />
-        <div className='flex space-x-2'>
-          <button onClick={signUp} className='px-3 py-2 bg-black text-white rounded'>Sign up</button>
-          <button onClick={signIn} className='px-3 py-2 border rounded'>Sign in</button>
+    <div className="min-h-screen flex items-center justify-center bg-gray-50">
+      <div className="bg-white shadow-md rounded-xl p-8 w-full max-w-md">
+        <h1 className="text-2xl font-bold text-center mb-6">Sign Up</h1>
+
+        {errorMsg && (
+          <p className="text-red-500 text-center mb-4">{errorMsg}</p>
+        )}
+
+        <form onSubmit={handleSignUp} className="space-y-4">
+          <input
+            type="text"
+            placeholder="Choose a username"
+            value={username}
+            onChange={(e) => setUsername(e.target.value)}
+            required
+            className="w-full border rounded-lg p-3"
+          />
+          <input
+            type="email"
+            placeholder="Email address"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            required
+            className="w-full border rounded-lg p-3"
+          />
+          <input
+            type="password"
+            placeholder="Password"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            required
+            className="w-full border rounded-lg p-3"
+          />
+
+          <button
+            type="submit"
+            disabled={loading}
+            className="w-full bg-blue-600 text-white rounded-lg p-3 hover:bg-blue-700 transition"
+          >
+            {loading ? "Creating account..." : "Create account"}
+          </button>
+        </form>
+
+        <div className="mt-6 border-t pt-4">
+          <h2 className="text-xl font-semibold text-center mb-4">Login</h2>
+          <form onSubmit={handleLogin} className="space-y-4">
+            <input
+              type="email"
+              placeholder="Email address"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              required
+              className="w-full border rounded-lg p-3"
+            />
+            <input
+              type="password"
+              placeholder="Password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              required
+              className="w-full border rounded-lg p-3"
+            />
+
+            <button
+              type="submit"
+              disabled={loading}
+              className="w-full bg-gray-800 text-white rounded-lg p-3 hover:bg-gray-900 transition"
+            >
+              {loading ? "Logging in..." : "Login"}
+            </button>
+          </form>
         </div>
-        {msg && <p className='mt-3 text-sm'>{msg}</p>}
       </div>
-    </main>
+    </div>
   );
-}
+    }
