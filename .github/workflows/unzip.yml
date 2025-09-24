@@ -1,0 +1,26 @@
+name: Unzip project
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  unzip:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v3
+
+      - name: Unzip project
+        run: |
+          unzip -o "linktree-final (2).zip" -d .
+          rm "linktree-final (2).zip"
+
+      - name: Commit unzipped files
+        run: |
+          git config user.name "github-actions"
+          git config user.email "github-actions@github.com"
+          git add .
+          git commit -m "Unzipped project" || echo "No changes to commit"
+          git push
